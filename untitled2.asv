@@ -1,0 +1,58 @@
+%% Clear cache
+clear;clc;close all
+
+%% Initialization
+import casadi.*
+
+dt = 0.1;
+
+numStates = 2;
+numControls = 1;
+
+x = MX.sym('x', 2);
+u = MX.sym('u', 1);
+
+f = [(1-x(2)^2)*x(1)-x(2) + u;
+     x(1)];
+
+x_next = x +  dt * f;
+f_func = Function('f_func', {x,u}, {f});
+dynamics = Function('dynamics', {x,u}, {x_next});
+
+% % Compute the Jacobian
+% j = jacobian(f, x);
+% j_func = Function('j_func', {x}, {j});
+% episilon = 1e-3;
+%% Define MPC Problem
+N = 10;
+Q = eye(numStates);
+R = eye(numControls);
+
+% Initialize optimization variables
+X = MX.sym('X', 2, N+1);
+U = MX.sym('U', 1, N);
+
+% Define Cost Function and Constraints
+cost = 0;
+constriants = [];
+
+x0 = rand(2,1);
+x_old = x0;
+x_ref = [1;0];
+
+for k = 1:N
+    cost = cost + (X(:,k) - x_ref)' * Q * (X(:,k) - x_ref) + U(k) * R * U(k);
+    constriants = [constriants; dynamics(X(:,k), U(k))];
+end
+cost = cost + (X(:,N+1) - x_ref)' * Q * (X(:,N+1) - x_ref);
+
+%% Create and Solve the NLP Problem
+nlp = struct;
+nlp.x = [X(:);U(:)];
+nlp.f = cost;
+nlp.g = constriants;
+
+solver = nlpsol('solver','ipopt',mlp)
+opt = struct;
+
+
